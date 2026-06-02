@@ -1,0 +1,96 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Dual 10Gbps AWS Direct Connect with BGP routing.
+  Provides resilient hybrid connectivity between on-premises data centers and AWS.
+
+Parameters:
+  TransitGatewayId:
+    Type: String
+    Description: Transit Gateway ID for DX Gateway association
+
+  PrimaryConnectionBandwidth:
+    Type: String
+    Default: 10Gbps
+    AllowedValues: [1Gbps, 10Gbps]
+
+  SecondaryConnectionBandwidth:
+    Type: String
+    Default: 10Gbps
+    AllowedValues: [1Gbps, 10Gbps]
+
+  CustomerBgpAsn:
+    Type: Number
+    Default: 65000
+    Description: Customer-side BGP ASN
+
+  AmazonBgpAsn:
+    Type: Number
+    Default: 64512
+    Description: Amazon-side BGP ASN for DX Gateway
+
+Resources:
+  DirectConnectGateway:
+    Type: AWS::DirectConnect::DirectConnectGateway
+    Properties:
+      DirectConnectGatewayName: contoso-dx-gateway
+      AmazonSideAsn: !Ref AmazonBgpAsn
+
+  # Associate DX Gateway with Transit Gateway
+  TransitGatewayAssociation:
+    Type: AWS::DirectConnect::DirectConnectGatewayAssociation
+    Properties:
+      DirectConnectGatewayId: !Ref DirectConnectGateway
+      GatewayId: !Ref TransitGatewayId
+
+  # Primary transit VIF
+  PrimaryTransitVirtualInterface:
+    Type: AWS::DirectConnect::TransitVirtualInterface
+    Properties:
+      ConnectionId: !Ref PrimaryConnectionId
+      DirectConnectGatewayId: !Ref DirectConnectGateway
+      VirtualInterfaceName: contoso-dx-primary-transit-vif
+      Asn: !Ref CustomerBgpAsn
+      Vlan: 100
+      Tags:
+        - Key: Name
+          Value: dx-vif-primary
+        - Key: Redundancy
+          Value: primary
+
+  # Secondary transit VIF for resilience
+  SecondaryTransitVirtualInterface:
+    Type: AWS::DirectConnect::TransitVirtualInterface
+    Properties:
+      ConnectionId: !Ref SecondaryConnectionId
+      DirectConnectGatewayId: !Ref DirectConnectGateway
+      VirtualInterfaceName: contoso-dx-secondary-transit-vif
+      Asn: !Ref CustomerBgpAsn
+      Vlan: 200
+      Tags:
+        - Key: Name
+          Value: dx-vif-secondary
+        - Key: Redundancy
+          Value: secondary
+
+  # Note: Connection IDs are pre-provisioned via AWS console/LOA
+  PrimaryConnectionId:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /network/dx/primary-connection-id
+      Type: String
+      Value: "dxcon-PLACEHOLDER-primary"
+      Description: Pre-provisioned Direct Connect primary connection
+
+  SecondaryConnectionId:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /network/dx/secondary-connection-id
+      Type: String
+      Value: "dxcon-PLACEHOLDER-secondary"
+      Description: Pre-provisioned Direct Connect secondary connection
+
+Outputs:
+  DirectConnectGatewayId:
+    Value: !Ref DirectConnectGateway
+    Export:
+      Name: !Sub "${AWS::StackName}-DxGwId"

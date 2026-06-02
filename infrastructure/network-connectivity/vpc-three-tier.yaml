@@ -1,0 +1,172 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Standardized 3-tier VPC design (web/app/data).
+  RFC1918 CIDR allocation with separate subnets per tier across 3 AZs.
+
+Parameters:
+  VpcCidr:
+    Type: String
+    Default: "10.0.0.0/16"
+    Description: VPC CIDR block (RFC1918)
+
+  Environment:
+    Type: String
+    AllowedValues: [production, staging, development]
+
+  TransitGatewayId:
+    Type: String
+    Description: Transit Gateway ID for spoke attachment
+
+Resources:
+  # ---------- VPC ----------
+  Vpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcCidr
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Sub "vpc-${Environment}"
+        - Key: Environment
+          Value: !Ref Environment
+
+  # ---------- Web Tier Subnets (public-facing) ----------
+  WebSubnetAz1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: !Select [0, !Cidr [!Ref VpcCidr, 9, 8]]
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      Tags:
+        - Key: Name
+          Value: !Sub "sn-web-${Environment}-az1"
+        - Key: Tier
+          Value: web
+
+  WebSubnetAz2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: !Select [1, !Cidr [!Ref VpcCidr, 9, 8]]
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      Tags:
+        - Key: Name
+          Value: !Sub "sn-web-${Environment}-az2"
+        - Key: Tier
+          Value: web
+
+  WebSubnetAz3:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: !Select [2, !Cidr [!Ref VpcCidr, 9, 8]]
+      AvailabilityZone: !Select [2, !GetAZs ""]
+      Tags:
+        - Key: Name
+          Value: !Sub "sn-web-${Environment}-az3"
+        - Key: Tier
+          Value: web
+
+  # ---------- Application Tier Subnets (private) ----------
+  AppSubnetAz1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: !Select [3, !Cidr [!Ref VpcCidr, 9, 8]]
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      Tags:
+        - Key: Name
+          Value: !Sub "sn-app-${Environment}-az1"
+        - Key: Tier
+          Value: application
+
+  AppSubnetAz2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: !Select [4, !Cidr [!Ref VpcCidr, 9, 8]]
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      Tags:
+        - Key: Name
+          Value: !Sub "sn-app-${Environment}-az2"
+        - Key: Tier
+          Value: application
+
+  AppSubnetAz3:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: !Select [5, !Cidr [!Ref VpcCidr, 9, 8]]
+      AvailabilityZone: !Select [2, !GetAZs ""]
+      Tags:
+        - Key: Name
+          Value: !Sub "sn-app-${Environment}-az3"
+        - Key: Tier
+          Value: application
+
+  # ---------- Data Tier Subnets (isolated) ----------
+  DataSubnetAz1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: !Select [6, !Cidr [!Ref VpcCidr, 9, 8]]
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      Tags:
+        - Key: Name
+          Value: !Sub "sn-data-${Environment}-az1"
+        - Key: Tier
+          Value: data
+
+  DataSubnetAz2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: !Select [7, !Cidr [!Ref VpcCidr, 9, 8]]
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      Tags:
+        - Key: Name
+          Value: !Sub "sn-data-${Environment}-az2"
+        - Key: Tier
+          Value: data
+
+  DataSubnetAz3:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: !Select [8, !Cidr [!Ref VpcCidr, 9, 8]]
+      AvailabilityZone: !Select [2, !GetAZs ""]
+      Tags:
+        - Key: Name
+          Value: !Sub "sn-data-${Environment}-az3"
+        - Key: Tier
+          Value: data
+
+  # ---------- Transit Gateway Attachment ----------
+  TgwAttachment:
+    Type: AWS::EC2::TransitGatewayAttachment
+    Properties:
+      TransitGatewayId: !Ref TransitGatewayId
+      VpcId: !Ref Vpc
+      SubnetIds:
+        - !Ref AppSubnetAz1
+        - !Ref AppSubnetAz2
+        - !Ref AppSubnetAz3
+      Tags:
+        - Key: Name
+          Value: !Sub "tgw-attach-${Environment}"
+
+Outputs:
+  VpcId:
+    Value: !Ref Vpc
+    Export:
+      Name: !Sub "${AWS::StackName}-VpcId"
+
+  WebSubnets:
+    Value: !Join [",", [!Ref WebSubnetAz1, !Ref WebSubnetAz2, !Ref WebSubnetAz3]]
+
+  AppSubnets:
+    Value: !Join [",", [!Ref AppSubnetAz1, !Ref AppSubnetAz2, !Ref AppSubnetAz3]]
+
+  DataSubnets:
+    Value: !Join [",", [!Ref DataSubnetAz1, !Ref DataSubnetAz2, !Ref DataSubnetAz3]]

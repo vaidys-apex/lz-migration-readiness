@@ -1,0 +1,81 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Transit Gateway hub-and-spoke network topology.
+  Provides centralized routing between VPCs and on-premises via Direct Connect.
+
+Parameters:
+  AmazonSideAsn:
+    Type: Number
+    Default: 64512
+    Description: Private ASN for Transit Gateway BGP peering
+
+  Environment:
+    Type: String
+    AllowedValues: [production, staging, development]
+    Default: production
+
+Resources:
+  TransitGateway:
+    Type: AWS::EC2::TransitGateway
+    Properties:
+      Description: Central hub for VPC and on-premises connectivity
+      AmazonSideAsn: !Ref AmazonSideAsn
+      AutoAcceptSharedAttachments: disable
+      DefaultRouteTableAssociation: disable
+      DefaultRouteTablePropagation: disable
+      DnsSupport: enable
+      VpnEcmpSupport: enable
+      Tags:
+        - Key: Name
+          Value: !Sub "tgw-hub-${Environment}"
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  # Route tables for segmented traffic
+  ProductionRouteTable:
+    Type: AWS::EC2::TransitGatewayRouteTable
+    Properties:
+      TransitGatewayId: !Ref TransitGateway
+      Tags:
+        - Key: Name
+          Value: tgw-rt-production
+
+  NonProductionRouteTable:
+    Type: AWS::EC2::TransitGatewayRouteTable
+    Properties:
+      TransitGatewayId: !Ref TransitGateway
+      Tags:
+        - Key: Name
+          Value: tgw-rt-nonproduction
+
+  SharedServicesRouteTable:
+    Type: AWS::EC2::TransitGatewayRouteTable
+    Properties:
+      TransitGatewayId: !Ref TransitGateway
+      Tags:
+        - Key: Name
+          Value: tgw-rt-shared-services
+
+Outputs:
+  TransitGatewayId:
+    Description: Transit Gateway ID for VPC attachments
+    Value: !Ref TransitGateway
+    Export:
+      Name: !Sub "${AWS::StackName}-TgwId"
+
+  ProductionRouteTableId:
+    Value: !Ref ProductionRouteTable
+    Export:
+      Name: !Sub "${AWS::StackName}-ProdRtId"
+
+  NonProductionRouteTableId:
+    Value: !Ref NonProductionRouteTable
+    Export:
+      Name: !Sub "${AWS::StackName}-NonProdRtId"
+
+  SharedServicesRouteTableId:
+    Value: !Ref SharedServicesRouteTable
+    Export:
+      Name: !Sub "${AWS::StackName}-SharedRtId"

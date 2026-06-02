@@ -1,0 +1,113 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Defense-in-depth security groups for 3-tier VPC architecture.
+  Enforces least-privilege traffic flow between web, app, and data tiers.
+
+Parameters:
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+
+  Environment:
+    Type: String
+    AllowedValues: [production, staging, development]
+
+Resources:
+  # ---------- Web Tier Security Group ----------
+  WebTierSg:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Web tier - allows HTTPS inbound from internet
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: "0.0.0.0/0"
+          Description: HTTPS from internet
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          DestinationSecurityGroupId: !Ref AppTierSg
+          Description: HTTPS to app tier
+      Tags:
+        - Key: Name
+          Value: !Sub "sg-web-${Environment}"
+        - Key: Tier
+          Value: web
+
+  # ---------- Application Tier Security Group ----------
+  AppTierSg:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: App tier - allows traffic from web tier only
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          SourceSecurityGroupId: !Ref WebTierSg
+          Description: HTTPS from web tier
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+          SourceSecurityGroupId: !Ref WebTierSg
+          Description: Application port from web tier
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          DestinationSecurityGroupId: !Ref DataTierSg
+          Description: PostgreSQL to data tier
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          DestinationSecurityGroupId: !Ref DataTierSg
+          Description: MySQL to data tier
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: "0.0.0.0/0"
+          Description: HTTPS outbound for API calls
+      Tags:
+        - Key: Name
+          Value: !Sub "sg-app-${Environment}"
+        - Key: Tier
+          Value: application
+
+  # ---------- Data Tier Security Group ----------
+  DataTierSg:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Data tier - allows database traffic from app tier only
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !Ref AppTierSg
+          Description: PostgreSQL from app tier
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          SourceSecurityGroupId: !Ref AppTierSg
+          Description: MySQL from app tier
+        - IpProtocol: tcp
+          FromPort: 1433
+          ToPort: 1433
+          SourceSecurityGroupId: !Ref AppTierSg
+          Description: SQL Server from app tier
+      SecurityGroupEgress: []
+      Tags:
+        - Key: Name
+          Value: !Sub "sg-data-${Environment}"
+        - Key: Tier
+          Value: data
+
+Outputs:
+  WebTierSecurityGroupId:
+    Value: !Ref WebTierSg
+  AppTierSecurityGroupId:
+    Value: !Ref AppTierSg
+  DataTierSecurityGroupId:
+    Value: !Ref DataTierSg

@@ -1,0 +1,97 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Service Control Policies enforcing organizational security guardrails.
+  Restricts API actions at account level as defense-in-depth complement to IAM.
+
+Resources:
+  # Deny leaving the organization
+  DenyLeaveOrganization:
+    Type: AWS::Organizations::Policy
+    Properties:
+      Name: deny-leave-organization
+      Description: Prevent accounts from leaving the AWS Organization
+      Type: SERVICE_CONTROL_POLICY
+      Content:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: DenyLeaveOrg
+            Effect: Deny
+            Action:
+              - organizations:LeaveOrganization
+            Resource: "*"
+
+  # Deny disabling CloudTrail
+  DenyDisableCloudTrail:
+    Type: AWS::Organizations::Policy
+    Properties:
+      Name: deny-disable-cloudtrail
+      Description: Prevent disabling or deleting CloudTrail trails
+      Type: SERVICE_CONTROL_POLICY
+      Content:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: DenyCloudTrailModification
+            Effect: Deny
+            Action:
+              - cloudtrail:DeleteTrail
+              - cloudtrail:StopLogging
+              - cloudtrail:UpdateTrail
+            Resource: "*"
+            Condition:
+              StringNotLike:
+                aws:PrincipalARN: "arn:aws:iam::*:role/AWSControlTowerExecution"
+
+  # Deny disabling GuardDuty
+  DenyDisableGuardDuty:
+    Type: AWS::Organizations::Policy
+    Properties:
+      Name: deny-disable-guardduty
+      Description: Prevent disabling GuardDuty detector
+      Type: SERVICE_CONTROL_POLICY
+      Content:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: DenyGuardDutyModification
+            Effect: Deny
+            Action:
+              - guardduty:DeleteDetector
+              - guardduty:DisassociateFromMasterAccount
+            Resource: "*"
+
+  # Deny unencrypted EBS volumes
+  DenyUnencryptedEbs:
+    Type: AWS::Organizations::Policy
+    Properties:
+      Name: deny-unencrypted-ebs
+      Description: Enforce EBS volume encryption at rest
+      Type: SERVICE_CONTROL_POLICY
+      Content:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: DenyUnencryptedVolumes
+            Effect: Deny
+            Action:
+              - ec2:CreateVolume
+            Resource: "*"
+            Condition:
+              Bool:
+                ec2:Encrypted: "false"
+
+  # Deny public S3 buckets
+  DenyPublicS3:
+    Type: AWS::Organizations::Policy
+    Properties:
+      Name: deny-public-s3
+      Description: Prevent S3 buckets from being made public
+      Type: SERVICE_CONTROL_POLICY
+      Content:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: DenyPublicBucketPolicies
+            Effect: Deny
+            Action:
+              - s3:PutBucketPublicAccessBlock
+            Resource: "*"
+            Condition:
+              StringNotEquals:
+                s3:PublicAccessBlockConfiguration.BlockPublicAcls: "true"

@@ -1,0 +1,78 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Multi-account organization structure with Control Tower.
+  Provides account-level isolation with separate VPCs per environment.
+
+Parameters:
+  OrganizationId:
+    Type: String
+    Description: AWS Organizations ID
+
+Resources:
+  # ---------- Organizational Units ----------
+  SecurityOU:
+    Type: AWS::Organizations::OrganizationalUnit
+    Properties:
+      Name: Security
+      ParentId: !Ref OrganizationId
+
+  InfrastructureOU:
+    Type: AWS::Organizations::OrganizationalUnit
+    Properties:
+      Name: Infrastructure
+      ParentId: !Ref OrganizationId
+
+  WorkloadsOU:
+    Type: AWS::Organizations::OrganizationalUnit
+    Properties:
+      Name: Workloads
+      ParentId: !Ref OrganizationId
+
+  ProductionOU:
+    Type: AWS::Organizations::OrganizationalUnit
+    Properties:
+      Name: Production
+      ParentId: !Ref WorkloadsOU
+
+  StagingOU:
+    Type: AWS::Organizations::OrganizationalUnit
+    Properties:
+      Name: Staging
+      ParentId: !Ref WorkloadsOU
+
+  DevelopmentOU:
+    Type: AWS::Organizations::OrganizationalUnit
+    Properties:
+      Name: Development
+      ParentId: !Ref WorkloadsOU
+
+  SandboxOU:
+    Type: AWS::Organizations::OrganizationalUnit
+    Properties:
+      Name: Sandbox
+      ParentId: !Ref OrganizationId
+
+  # ---------- Core Accounts ----------
+  # Note: Accounts are provisioned via Control Tower Account Factory.
+  # This template documents the OU structure only.
+
+Outputs:
+  SecurityOUId:
+    Value: !Ref SecurityOU
+    Description: Security OU for log archive, audit, and security tooling accounts
+
+  InfrastructureOUId:
+    Value: !Ref InfrastructureOU
+    Description: Infrastructure OU for networking, shared services accounts
+
+  ProductionOUId:
+    Value: !Ref ProductionOU
+    Description: Production workload accounts
+
+  StagingOUId:
+    Value: !Ref StagingOU
+    Description: Pre-production testing accounts
+
+  DevelopmentOUId:
+    Value: !Ref DevelopmentOU
+    Description: Development and experimentation accounts

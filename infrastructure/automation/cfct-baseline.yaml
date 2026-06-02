@@ -1,0 +1,112 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Customizations for Control Tower (CfCT) baseline deployment.
+  Automates account provisioning with standardized security and networking configurations.
+
+Parameters:
+  ControlTowerHomeRegion:
+    Type: String
+    Default: us-east-1
+
+  GovernedRegions:
+    Type: CommaDelimitedList
+    Default: "us-east-1,us-west-2"
+    Description: Regions governed by Control Tower
+
+Resources:
+  # ---------- CfCT Pipeline Artifacts Bucket ----------
+  CfctArtifactsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "cfct-artifacts-${AWS::AccountId}"
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: aws:kms
+      VersioningConfiguration:
+        Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        - Key: ManagedBy
+          Value: CfCT
+
+  # ---------- CfCT CodePipeline ----------
+  CfctPipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      Name: customizations-for-control-tower
+      RoleArn: !GetAtt CfctPipelineRole.Arn
+      ArtifactStore:
+        Type: S3
+        Location: !Ref CfctArtifactsBucket
+      Stages:
+        - Name: Source
+          Actions:
+            - Name: SourceAction
+              ActionTypeId:
+                Category: Source
+                Owner: AWS
+                Provider: S3
+                Version: "1"
+              Configuration:
+                S3Bucket: !Ref CfctArtifactsBucket
+                S3ObjectKey: custom-control-tower-configuration.zip
+              OutputArtifacts:
+                - Name: SourceOutput
+        - Name: Deploy
+          Actions:
+            - Name: DeployBaseline
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: CloudFormation
+                Version: "1"
+              InputArtifacts:
+                - Name: SourceOutput
+              Configuration:
+                ActionMode: CREATE_UPDATE
+                StackName: cfct-account-baseline
+                TemplatePath: "SourceOutput::templates/account-baseline.yaml"
+                RoleArn: !GetAtt CfctDeployRole.Arn
+
+  # ---------- IAM Roles ----------
+  CfctPipelineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: CfCT-PipelineRole
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codepipeline.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AWSCodePipeline_FullAccess
+
+  CfctDeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: CfCT-DeployRole
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: cloudformation.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AdministratorAccess
+
+Outputs:
+  CfctPipelineName:
+    Value: !Ref CfctPipeline
+    Description: CfCT pipeline for automated account baseline deployment
+
+  ArtifactsBucket:
+    Value: !Ref CfctArtifactsBucket
+    Description: S3 bucket storing CfCT configuration artifacts
