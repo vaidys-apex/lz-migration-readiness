@@ -15,22 +15,3 @@ infrastructure/
 └── automation/                # Control Tower baseline, CfCT automation
 ```
 
-## What This Represents
-
-These templates reflect the **strengths** identified in the LZ Readiness Assessment — the capabilities that are already implemented and operational. The **gaps** identified in the assessment (IPAM, VPC Flow Logs retention, capacity planning, template versioning) are intentionally absent from this codebase, representing work that remains to be done.
-
-## Infrastructure Pillar (4/5 — Managed)
-
-### Implemented (in this repo)
-- Multi-Account Foundation with Control Tower
-- Hub-and-spoke networking with Transit Gateway
-- Dual 10Gbps Direct Connect hybrid connectivity
-- 3-tier VPC design (web/app/data)
-- Centralized egress with NACLs and Security Groups
-- Workload isolation via dedicated VPCs per environment
-
-### Not Implemented (gaps — not in this repo)
-- Centralized IPAM solution
-- VPC Flow Logs with defined retention
-- Network capacity planning / Direct Connect monitoring
-- CfCT template versioning and rollback
