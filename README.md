@@ -2,7 +2,6 @@
 
 This repository contains CloudFormation templates representing the **current state** of Contoso Financial Services' AWS Landing Zone infrastructure, as assessed on June 2, 2026.
 
-**Assessment Scope:** 347 applications, 1,214 servers, 189 databases
 **Overall Maturity:** 3.0/5 (Defined)
 
 ## Structure
