@@ -1,0 +1,83 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Route 53 Resolver for hybrid DNS between on-premises and AWS'
+
+Parameters:
+  VpcId:
+    Type: String
+    Description: VPC ID for resolver endpoints
+  PrivateSubnetIds:
+    Type: CommaDelimitedList
+    Description: Private subnet IDs for resolver endpoints
+  OnPremDnsIps:
+    Type: CommaDelimitedList
+    Description: On-premises DNS server IP addresses
+
+Resources:
+  ResolverSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for Route 53 Resolver endpoints
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 53
+          ToPort: 53
+          CidrIp: 10.0.0.0/8
+          Description: DNS TCP from corporate network
+        - IpProtocol: udp
+          FromPort: 53
+          ToPort: 53
+          CidrIp: 10.0.0.0/8
+          Description: DNS UDP from corporate network
+      Tags:
+        - Key: Name
+          Value: route53-resolver-sg
+
+  InboundResolverEndpoint:
+    Type: AWS::Route53Resolver::ResolverEndpoint
+    Properties:
+      Direction: INBOUND
+      IpAddresses:
+        - SubnetId: !Select [0, !Ref PrivateSubnetIds]
+        - SubnetId: !Select [1, !Ref PrivateSubnetIds]
+      SecurityGroupIds:
+        - !Ref ResolverSecurityGroup
+      Tags:
+        - Key: Name
+          Value: inbound-resolver-endpoint
+
+  OutboundResolverEndpoint:
+    Type: AWS::Route53Resolver::ResolverEndpoint
+    Properties:
+      Direction: OUTBOUND
+      IpAddresses:
+        - SubnetId: !Select [0, !Ref PrivateSubnetIds]
+        - SubnetId: !Select [1, !Ref PrivateSubnetIds]
+      SecurityGroupIds:
+        - !Ref ResolverSecurityGroup
+      Tags:
+        - Key: Name
+          Value: outbound-resolver-endpoint
+
+  OnPremResolverRule:
+    Type: AWS::Route53Resolver::ResolverRule
+    Properties:
+      DomainName: corp.contoso.com
+      RuleType: FORWARD
+      ResolverEndpointId: !Ref OutboundResolverEndpoint
+      TargetIps: !Split
+        - ','
+        - !Sub
+          - '[${IpList}]'
+          - IpList: !Join
+              - ','
+              - !Ref OnPremDnsIps
+      Tags:
+        - Key: Name
+          Value: onprem-dns-forward-rule
+
+Outputs:
+  InboundEndpointId:
+    Value: !Ref InboundResolverEndpoint
+  OutboundEndpointId:
+    Value: !Ref OutboundResolverEndpoint

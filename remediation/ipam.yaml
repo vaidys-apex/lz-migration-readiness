@@ -1,0 +1,72 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'AWS IPAM for centralized IP address management across accounts'
+
+Resources:
+  IPAM:
+    Type: AWS::EC2::IPAM
+    Properties:
+      Description: Centralized IP address management for Landing Zone
+      OperatingRegions:
+        - RegionName: !Ref AWS::Region
+      Tags:
+        - Key: Name
+          Value: contoso-ipam
+
+  PrivateIPAMPool:
+    Type: AWS::EC2::IPAMPool
+    Properties:
+      IpamScopeId: !GetAtt IPAM.PrivateDefaultScopeId
+      AddressFamily: ipv4
+      ProvisionedCidrs:
+        - Cidr: 10.0.0.0/8
+      Description: Private IP pool for VPCs
+      Locale: !Ref AWS::Region
+      Tags:
+        - Key: Name
+          Value: private-ipam-pool
+
+  ProductionIPAMPool:
+    Type: AWS::EC2::IPAMPool
+    Properties:
+      IpamScopeId: !GetAtt IPAM.PrivateDefaultScopeId
+      AddressFamily: ipv4
+      SourceIpamPoolId: !Ref PrivateIPAMPool
+      ProvisionedCidrs:
+        - Cidr: 10.100.0.0/16
+      Description: Production workload VPC pool
+      Locale: !Ref AWS::Region
+      AllocationDefaultNetmaskLength: 20
+      AllocationMinNetmaskLength: 20
+      AllocationMaxNetmaskLength: 24
+      Tags:
+        - Key: Name
+          Value: production-ipam-pool
+        - Key: Environment
+          Value: Production
+
+  NonProductionIPAMPool:
+    Type: AWS::EC2::IPAMPool
+    Properties:
+      IpamScopeId: !GetAtt IPAM.PrivateDefaultScopeId
+      AddressFamily: ipv4
+      SourceIpamPoolId: !Ref PrivateIPAMPool
+      ProvisionedCidrs:
+        - Cidr: 10.200.0.0/16
+      Description: Non-production workload VPC pool
+      Locale: !Ref AWS::Region
+      AllocationDefaultNetmaskLength: 20
+      AllocationMinNetmaskLength: 20
+      AllocationMaxNetmaskLength: 24
+      Tags:
+        - Key: Name
+          Value: non-production-ipam-pool
+        - Key: Environment
+          Value: NonProduction
+
+Outputs:
+  IPAMId:
+    Value: !Ref IPAM
+  ProductionPoolId:
+    Value: !Ref ProductionIPAMPool
+  NonProductionPoolId:
+    Value: !Ref NonProductionIPAMPool

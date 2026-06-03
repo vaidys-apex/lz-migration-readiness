@@ -1,0 +1,69 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'CloudWatch Dashboard for network monitoring and alerting'
+
+Parameters:
+  TransitGatewayId:
+    Type: String
+    Description: Transit Gateway ID for monitoring
+  DirectConnectIds:
+    Type: CommaDelimitedList
+    Description: Direct Connect connection IDs
+  AlarmEmail:
+    Type: String
+    Description: Email for alarm notifications
+
+Resources:
+  AlarmTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: Network Monitoring Alarms
+      Subscription:
+        - Endpoint: !Ref AlarmEmail
+          Protocol: email
+
+  TransitGatewayBytesInAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: TGW-HighBytesIn
+      AlarmDescription: Transit Gateway receiving high traffic volume
+      MetricName: BytesIn
+      Namespace: AWS/TransitGateway
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 10000000000
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: TransitGateway
+          Value: !Ref TransitGatewayId
+      AlarmActions:
+        - !Ref AlarmTopic
+
+  NetworkDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: NetworkMonitoring
+      DashboardBody: !Sub |
+        {
+          "widgets": [
+            {
+              "type": "metric",
+              "properties": {
+                "metrics": [
+                  ["AWS/TransitGateway", "BytesIn", {"stat": "Sum"}],
+                  [".", "BytesOut", {"stat": "Sum"}]
+                ],
+                "period": 300,
+                "stat": "Sum",
+                "region": "${AWS::Region}",
+                "title": "Transit Gateway Traffic"
+              }
+            }
+          ]
+        }
+
+Outputs:
+  DashboardURL:
+    Value: !Sub 'https://console.aws.amazon.com/cloudwatch/home?region=${AWS::Region}#dashboards:name=NetworkMonitoring'
+  AlarmTopicArn:
+    Value: !Ref AlarmTopic
